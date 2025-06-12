@@ -1,6 +1,7 @@
 import os
 import requests
-from flask import Flask, request
+from flask import Flask, request, jsonify
+import datetime
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 API_URL = "https://blrx-ban-bancheck.vercel.app/check_banned"
@@ -23,16 +24,28 @@ def webhook():
                 if resp.status_code == 200:
                     d = resp.json()
                     if d.get("is_banned"):
-                        msg = f"UID {uid} đã bị BAN."
+                        msg = (
+                            f"🔎 <b>Kết quả kiểm tra UID Free Fire</b>:\n"
+                            f"• <b>UID:</b> <code>{uid}</code>\n"
+                            f"• <b>Trạng thái:</b> 🚫 <b>BỊ BAN</b>"
+                        )
                     else:
-                        msg = f"UID {uid} KHÔNG bị BAN."
+                        msg = (
+                            f"🔎 <b>Kết quả kiểm tra UID Free Fire</b>:\n"
+                            f"• <b>UID:</b> <code>{uid}</code>\n"
+                            f"• <b>Trạng thái:</b> ✅ <b>KHÔNG bị BAN</b>"
+                        )
                 else:
-                    msg = "Lỗi khi kiểm tra UID."
+                    msg = "<b>Lỗi khi kiểm tra UID.</b>"
             else:
-                msg = "Vui lòng nhập UID. Ví dụ: /check 2260069951"
+                msg = "<b>Vui lòng nhập UID. Ví dụ: /check 2260069951</b>"
             requests.get(
                 f"{BOT_URL}/sendMessage",
-                params={"chat_id": chat_id, "text": msg}
+                params={
+                    "chat_id": chat_id,
+                    "text": msg,
+                    "parse_mode": "HTML"
+                }
             )
     return "ok"
 
@@ -47,19 +60,35 @@ def cron_check():
     if resp.status_code == 200:
         data = resp.json()
         if data.get("is_banned"):
-            msg = f"UID {uid} đã bị BAN."
+            msg = (
+                f"🔎 <b>Kết quả kiểm tra UID Free Fire</b>:\n"
+                f"• <b>UID:</b> <code>{uid}</code>\n"
+                f"• <b>Trạng thái:</b> 🚫 <b>BỊ BAN</b>"
+            )
         else:
-            msg = f"UID {uid} KHÔNG bị BAN."
+            msg = (
+                f"🔎 <b>Kết quả kiểm tra UID Free Fire</b>:\n"
+                f"• <b>UID:</b> <code>{uid}</code>\n"
+                f"• <b>Trạng thái:</b> ✅ <b>KHÔNG bị BAN</b>"
+            )
         requests.get(
             f"{BOT_URL}/sendMessage",
-            params={"chat_id": chat_id, "text": msg}
+            params={
+                "chat_id": chat_id,
+                "text": msg,
+                "parse_mode": "HTML"
+            }
         )
         return "Đã gửi kết quả", 200
     return "Lỗi khi kiểm tra UID", 500
 
 @app.route("/ping", methods=["GET"])
 def ping():
-    return "pong", 200
+    return jsonify({
+        "status": "ok",
+        "message": "pong",
+        "time": datetime.datetime.utcnow().isoformat() + "Z"
+    }), 200
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000) 
