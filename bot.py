@@ -57,5 +57,9 @@ def cron_check():
         return "Đã gửi kết quả", 200
     return "Lỗi khi kiểm tra UID", 500
 
+@app.route("/ping", methods=["GET"])
+def ping():
+    return "pong", 200
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000) 
