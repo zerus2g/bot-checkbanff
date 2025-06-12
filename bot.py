@@ -1,34 +1,42 @@
 import os
 import requests
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from flask import Flask, request
-import threading
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")  # Đặt biến môi trường trên Render
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 API_URL = "https://blrx-ban-bancheck.vercel.app/check_banned"
+BOT_URL = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
 
-async def check_ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text("Vui lòng nhập UID. Ví dụ: /check 2260069951")
-        return
-    uid = context.args[0]
-    params = {"uid": uid, "key": "blrx_ban"}
-    resp = requests.get(API_URL, params=params)
-    if resp.status_code == 200:
-        data = resp.json()
-        if data.get("is_banned"):
-            msg = f"UID {uid} đã bị BAN."
-        else:
-            msg = f"UID {uid} KHÔNG bị BAN."
-        await update.message.reply_text(msg)
-    else:
-        await update.message.reply_text("Lỗi khi kiểm tra UID.")
+app = Flask(__name__)
 
-# Flask app cho cron-job.org
-app_flask = Flask(__name__)
+@app.route(f"/{TELEGRAM_TOKEN}", methods=["POST"])
+def webhook():
+    data = request.get_json()
+    if "message" in data and "text" in data["message"]:
+        chat_id = data["message"]["chat"]["id"]
+        text = data["message"]["text"]
+        if text.startswith("/check"):
+            parts = text.split()
+            if len(parts) == 2:
+                uid = parts[1]
+                params = {"uid": uid, "key": "blrx_ban"}
+                resp = requests.get(API_URL, params=params)
+                if resp.status_code == 200:
+                    d = resp.json()
+                    if d.get("is_banned"):
+                        msg = f"UID {uid} đã bị BAN."
+                    else:
+                        msg = f"UID {uid} KHÔNG bị BAN."
+                else:
+                    msg = "Lỗi khi kiểm tra UID."
+            else:
+                msg = "Vui lòng nhập UID. Ví dụ: /check 2260069951"
+            requests.get(
+                f"{BOT_URL}/sendMessage",
+                params={"chat_id": chat_id, "text": msg}
+            )
+    return "ok"
 
-@app_flask.route("/cron", methods=["GET"])
+@app.route("/cron", methods=["GET"])
 def cron_check():
     uid = request.args.get("uid")
     chat_id = request.args.get("chat_id")
@@ -42,19 +50,12 @@ def cron_check():
             msg = f"UID {uid} đã bị BAN."
         else:
             msg = f"UID {uid} KHÔNG bị BAN."
-        # Gửi tin nhắn về Telegram
         requests.get(
-            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+            f"{BOT_URL}/sendMessage",
             params={"chat_id": chat_id, "text": msg}
         )
         return "Đã gửi kết quả", 200
     return "Lỗi khi kiểm tra UID", 500
 
-def start_telegram():
-    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-    app.add_handler(CommandHandler("check", check_ban))
-    app.run_polling()
-
 if __name__ == "__main__":
-    threading.Thread(target=start_telegram).start()
-    app_flask.run(host="0.0.0.0", port=10000) 
+    app.run(host="0.0.0.0", port=10000) 
